@@ -402,6 +402,15 @@ func (cfg *Configuration) Init(getter genericclioptions.RESTClientGetter, namesp
 			return fmt.Errorf("unable to instantiate SQL driver: %w", err)
 		}
 		store = storage.Init(d)
+
+	case "http":
+		d, err := driver.NewHTTP(os.Getenv("HELM_DRIVER_HTTP_URL"), parseHeadersFromEnv(os.Getenv("HELM_DRIVER_HTTP_HEADERS")))
+		if err != nil {
+			return fmt.Errorf("unable to instantiate HTTP driver: %w", err)
+		}
+		d.SetNamespace(namespace)
+		store = storage.Init(d)
+
 	default:
 		return fmt.Errorf("unknown driver %q", helmDriver)
 	}
@@ -412,6 +421,21 @@ func (cfg *Configuration) Init(getter genericclioptions.RESTClientGetter, namesp
 	cfg.HookOutputFunc = func(_, _, _ string) io.Writer { return io.Discard }
 
 	return nil
+}
+
+func parseHeadersFromEnv(httpHeaders string) map[string]string {
+	headers := make(map[string]string)
+	if httpHeaders != "" {
+		for _, header := range strings.Split(httpHeaders, ",") {
+			parts := strings.SplitN(header, ":", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+				headers[key] = value
+			}
+		}
+	}
+	return headers
 }
 
 // SetHookOutputFunc sets the HookOutputFunc on the Configuration.

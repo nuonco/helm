@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
+	"reflect"
+
 	"helm.sh/helm/v4/internal/logging"
 	chart "helm.sh/helm/v4/pkg/chart/v2"
 	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
@@ -365,5 +367,63 @@ func TestGetVersionSet(t *testing.T) {
 	}
 	if vs.Has("nosuchversion/v1") {
 		t.Error("Non-existent version is reported found.")
+	}
+}
+
+func TestParseHeadersFromEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected map[string]string
+	}{
+		{
+			name:     "Empty input",
+			input:    "",
+			expected: map[string]string{},
+		},
+		{
+			name:  "Single header",
+			input: "Authorization: Bearer token",
+			expected: map[string]string{
+				"Authorization": "Bearer token",
+			},
+		},
+		{
+			name:  "Multiple headers",
+			input: "Authorization: Bearer token, Content-Type: application/json",
+			expected: map[string]string{
+				"Authorization": "Bearer token",
+				"Content-Type":  "application/json",
+			},
+		},
+		{
+			name:  "Headers with extra spaces",
+			input: "Authorization: Bearer token , Content-Type: application/json ",
+			expected: map[string]string{
+				"Authorization": "Bearer token",
+				"Content-Type":  "application/json",
+			},
+		},
+		{
+			name:     "Invalid header format",
+			input:    "InvalidHeader",
+			expected: map[string]string{},
+		},
+		{
+			name:  "Mixed valid and invalid headers",
+			input: "Authorization: Bearer token, InvalidHeader",
+			expected: map[string]string{
+				"Authorization": "Bearer token",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseHeadersFromEnv(tt.input)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("parseHeadersFromEnv(%q) = %v, want %v", tt.input, result, tt.expected)
+			}
+		})
 	}
 }
